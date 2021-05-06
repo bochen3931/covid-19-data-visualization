@@ -44,4 +44,6 @@ us_states <- us_states %>%
 # id is a grouping variable, drop after unproup
 us_states <- us_states %>%  ungroup() %>%
     select(-id)
+
+us_states
 ```
