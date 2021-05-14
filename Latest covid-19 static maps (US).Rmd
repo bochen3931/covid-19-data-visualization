@@ -1,0 +1,160 @@
+---
+title: "Latest covid-19 static maps (US)"
+author: "Bo Chen"
+date: "5/13/2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load paskages
+```{r warning=F, message=F}
+library(pacman)
+p_load(COVID19,tidyverse, ggplot2,lubridate,usmap,dplyr,skimr,statebins,reshape,leaflet,leafpop,flexdashboard,plotly,ggmap,RgoogleMaps)
+```
+
+# Statics Maps with plot_usmap()
+
+# Extracting data may stop working at midnight!
+```{r warning=F, message=F,verbose = F,results='hide'}
+if_df <- covid19(country = "US", level = 2, start = Sys.Date(), end = Sys.Date()) 
+
+length_date <- nchar(if_df[1,] %>% ungroup() %>% dplyr::select(date))
+
+length_confirmed <- nchar(if_df[1,] %>% ungroup() %>% dplyr::select(confirmed))
+
+if (length_date>2 & length_confirmed>2) {
+us_states <- covid19(country = "US", level = 2, start = Sys.Date(), end = Sys.Date()); 
+title1_confirmed <- paste("COVID19 Confirmed Cases in the US (", Sys.Date(), ")", sep = "");
+title1_deaths <- paste("COVID19 deaths in the US (", Sys.Date(), ")", sep = "");
+title1_vaccines <- paste("COVID19 vaccines in the US (", Sys.Date(), ")", sep = "")
+} else { 
+us_states <- covid19(country = "US", level = 2, start = str_sub(as.POSIXct(Sys.Date()),1,10), end = str_sub(as.POSIXct(Sys.Date()),1,10));
+title2_confirmed <- paste("COVID19 Confirmed Cases in the US (", str_sub(as.POSIXct(Sys.Date()),1,10), ")", sep = "");
+title2_deaths <- paste("COVID19 deaths in the US (", str_sub(as.POSIXct(Sys.Date()),1,10), ")", sep = "");
+title2_vaccines <- paste("COVID19 vaccines in the US (", str_sub(as.POSIXct(Sys.Date()),1,10), ")", sep = "")
+}
+
+us_states <- us_states %>% rename(state=administrative_area_level_2) %>%
+  dplyr::select(id, date, state, population, confirmed, vaccines, deaths, latitude, longitude) 
+us_states <- us_states %>%
+  filter(!(state %in% c('Northern Mariana Islands', 'Puerto Rico', 'Guam', 'American Samoa', 'Virgin Islands')))
+us_states <- us_states %>%  ungroup() %>%
+    dplyr::select(-id)
+
+myColors <- c("#0066FFFF", "#00CCFFFF", 
+              "#00FFCCFF", "#00FF66FF", "#00FF00FF", "#66FF00FF", "#CCFF00FF",
+              "#FFCC00FF", "#FF6600FF", "#FF0000FF")
+
+library(usmap) # Conveniently plot basic US map
+
+if (length_date>2 & length_confirmed>2) {
+plot_usmap(data = us_states, values = "confirmed", color = "white") +
+  scale_fill_continuous(name = "Confirmed cases", low="#ffb6c1", high = "#e75480") +
+  theme(legend.position = "right") +
+  ggtitle(title1_confirmed);
+
+} else {
+plot_usmap(data = us_states, values = "confirmed", color = "white") +
+  scale_fill_continuous(name = "Confirmed cases", low="#ffb6c1", high = "#e75480") +
+  theme(legend.position = "right") +
+  ggtitle(title2_confirmed);
+  
+
+}
+
+if (length_date>2 & length_confirmed>2) {
+
+
+plot_usmap(data = us_states, values = "deaths", color = "white") +
+scale_fill_continuous(name = "# of deaths", low="#CBC3E3", high = "#301934") +
+theme(legend.position = "right") +
+  ggtitle(title1_deaths);
+
+
+  
+} else {
+
+plot_usmap(data = us_states, values = "deaths", color = "white") +
+scale_fill_continuous(name = "# of deaths", low="#CBC3E3", high = "#301934") +
+theme(legend.position = "right") +
+  labs(title = title2_deaths);
+
+
+}
+
+if (length_date>2 & length_confirmed>2) {
+
+plot_usmap(data = us_states, values = "vaccines", color = "white") +
+scale_fill_continuous(name = "# of vaccines", low="#56B1F7", high = "#132B43") +
+theme(legend.position = "right") +
+  ggtitle(title1_vaccines)
+  
+} else {
+
+
+plot_usmap(data = us_states, values = "vaccines", color = "white") +
+scale_fill_continuous(name = "# of vaccines", low="#56B1F7", high = "#132B43") +
+theme(legend.position = "right") +
+  labs(title = title2_vaccines)
+}
+```
+
+# Statics Maps with statebins()
+
+```{r warning=F, message=F}
+library(statebins)
+
+# statebins_continuous() # not working
+
+if (length_date>2 & length_confirmed>2) {
+  statebins(us_states, value_col="confirmed", name = "confirmed cases") +
+  theme_statebins(legend_position="right") +
+  scale_fill_continuous(name = "Confirmed cases", low="#ffb6c1", high = "#e75480") +
+  ggtitle(title1_confirmed);
+
+
+  
+} else {
+statebins(us_states, value_col="confirmed", name = "confirmed cases") +
+  theme_statebins(legend_position="right") +
+  scale_fill_continuous(name = "Confirmed cases", low="#ffb6c1", high = "#e75480") +
+  ggtitle(title2_confirmed)
+}
+
+if (length_date>2 & length_confirmed>2) {
+
+  
+
+statebins(us_states, value_col="deaths", name = "deaths") +
+  theme_statebins(legend_position="right") +
+  scale_fill_continuous(name = "# of deaths", low="#CBC3E3", high = "#301934") +
+  ggtitle(title1_deaths);
+
+} else {
+
+statebins(us_states, value_col="deaths", name = "deaths") +
+  theme_statebins(legend_position="right") +
+  scale_fill_continuous(name = "# of deaths", low="#CBC3E3", high = "#301934") +
+  ggtitle(title2_deaths);
+
+}
+
+if (length_date>2 & length_confirmed>2) {
+statebins(us_states, value_col="vaccines", name = "confirmed cases") +
+  theme_statebins(legend_position="right") +
+  scale_fill_continuous(name = "# of vaccines", low="#56B1F7", high = "#132B43") +
+  ggtitle(title1_vaccines)  
+  
+} else {
+statebins(us_states, value_col="vaccines", name = "confirmed cases") +
+  theme_statebins(legend_position="right") +
+  scale_fill_continuous(name = "# of vaccines", low="#56B1F7", high = "#132B43") +
+  ggtitle(title2_vaccines)
+}
+```
