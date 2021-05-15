@@ -1,0 +1,110 @@
+---
+title: "US states geolocation validation"
+author: "Bo Chen"
+date: "5/14/2021"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load paskages
+```{r warning=F, message=F,verbose = F}
+library(pacman)
+p_load(COVID19,tidyverse, ggplot2,lubridate,usmap,dplyr,skimr,statebins,reshape,leaflet,leafpop,flexdashboard,plotly,ggmap,RgoogleMaps)
+```
+
+```{r}
+if_df <- covid19(country = "US", level = 2, start = Sys.Date(), end = Sys.Date()) 
+
+length_date <- nchar(if_df[1,] %>% ungroup() %>% dplyr::select(date))
+
+length_confirmed <- nchar(if_df[1,] %>% ungroup() %>% dplyr::select(confirmed))
+
+if (length_date>2 & length_confirmed>2) {
+us_states <- covid19(country = "US", level = 2, start = Sys.Date(), end = Sys.Date())
+} else { 
+us_states <- covid19(country = "US", level = 2, start = str_sub(as.POSIXct(Sys.Date()),1,10), end = str_sub(as.POSIXct(Sys.Date()),1,10))
+}
+us_states <- us_states %>% rename(state=administrative_area_level_2) %>%
+  dplyr::select(id, date, state, population, confirmed, vaccines, deaths, latitude, longitude) 
+us_states <- us_states %>%
+  filter(!(state %in% c('Northern Mariana Islands', 'Puerto Rico', 'Guam', 'American Samoa', 'Virgin Islands')))
+us_states <- us_states %>%  ungroup() %>%
+    dplyr::select(-id)
+```
+
+
+# US state geolocation validation by table
+```{r warning=F, message=F,verbose = F}
+us_states_cor <- us_states %>%
+  dplyr::select(state, latitude, longitude) %>%
+  rename(latitude_covid19data=latitude) %>%
+  rename(longitude_covid19data=longitude)
+
+
+library(ggmap)
+register_google("AIzaSyDWLal5u97PwxxjADtWiF6Lpg97aTkkxMI") # API key
+
+# Note: if Google API key is not working, 
+# you may try library(RgoogleMaps) which does not require API key;
+# however, Washington state is treated as Washington, D.C in the package.
+
+us_states_gcor <- geocode(location = us_states$state) %>%
+  rename(latitude_googledata=lat) %>%
+  rename(longitude_googledata=lon)
+
+geo_compare <- cbind(us_states_cor, us_states_gcor)
+
+geo_compare
+```
+
+
+# US state geolocation validation by map
+
+## Map with geolocation data from covid-19 data hub
+
+```{r warning=F, message=F,verbose = F}
+leaflet(us_states) %>%
+  addTiles() %>%
+  fitBounds(~min(longitude), ~min(latitude),
+             ~max(longitude), ~max(latitude)) %>%
+  addCircleMarkers(stroke = FALSE,
+                   fillOpacity = 0.3,
+                   radius = ~log(confirmed)*0.8,
+                   fillColor = "red",
+                   popup = ~paste0(
+                     "<b>",state, "</b><br/>",
+                     "Total confirmed cases: ", confirmed
+                   ))
+```
+
+## Map with geolocation data from Google
+```{r warning=F, message=F,verbose = F}
+covid19_state_nogeo <- us_states %>% dplyr::select(state, confirmed, deaths, vaccines)
+
+library(ggmap)
+register_google("AIzaSyDWLal5u97PwxxjADtWiF6Lpg97aTkkxMI") # API key
+
+us_states_geo2 <- geocode(location = us_states$state)
+
+covid19_state_geo2 <- cbind(covid19_state_nogeo, us_states_geo2) %>% mutate(latitude=lat) %>% mutate(longitude=lon) %>% dplyr::select(-lon,-lat)
+
+# Map with geolocation data from Google
+leaflet(covid19_state_geo2) %>%
+  addTiles() %>%
+  fitBounds(~min(longitude), ~min(latitude),
+             ~max(longitude), ~max(latitude)) %>%
+  addCircleMarkers(stroke = FALSE,
+                   fillOpacity = 0.5,
+                   radius = ~confirmed^0.5/109,
+                   fillColor = "red",
+                   popup = ~paste0(
+                     "<b>",state, "</b><br/>",
+                     "Total confirmed cases: ", confirmed
+                   ))
+```
+
